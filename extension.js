@@ -113,6 +113,9 @@ class FileHistoryView extends HistoryView {
   }
 }
 
+// Lines in a text, not counting the empty one after a final newline.
+const lineCount = text => (text ? text.split('\n').length - (text.endsWith('\n') ? 1 : 0) : 0);
+
 class LineHistoryView extends HistoryView {
   constructor(id) {
     super(id);
@@ -145,9 +148,14 @@ class LineHistoryView extends HistoryView {
     const base = head && await git.show(repo.root, head, repo.rel);
     if (base === null || !head) return { message: 'This file isn\'t committed yet.', description };
 
+    // After a final newline, the editor shows an empty line that isn't in the file.
+    const text = doc.getText();
+    if (start > lineCount(text)) return { description };
+
     // Line numbers in the editor include uncommitted edits: map them back to HEAD.
-    const hunks = await git.diffHunks(base, doc.getText());
-    const { range, dirty } = git.mapRange(hunks, start, end);
+    const hunks = await git.diffHunks(base, text);
+    const { range, dirty } = git.mapRange(hunks, start, Math.min(end, lineCount(text)));
+    if (range) range.end = Math.min(range.end, lineCount(base));
     const target = { ...repo, uri: doc.uri, line: start };
     const items = [];
     if (dirty) items.push(new UncommittedItem(target));
