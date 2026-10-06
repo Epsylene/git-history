@@ -1,9 +1,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const git = require('./git');
-const { revisionUri, short, ago, debounce } = require('./common');
-
-const STATUS = { A: 'added', D: 'deleted', M: 'modified', R: 'renamed', C: 'copied', T: 'type changed', U: 'untracked' };
+const { short, ago, debounce, ChangedFileItem, openMultiDiff } = require('./common');
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 'es'}`;
 
@@ -47,28 +45,6 @@ class StashItem extends vscode.TreeItem {
   }
 }
 
-function diffTitle(file, stash) {
-  return `${path.posix.basename(file.rel)} (${stash.ref})`;
-}
-
-class StashFileItem extends vscode.TreeItem {
-  constructor(root, stash, file) {
-    super(path.posix.basename(file.rel));
-    this.id = `stash:${stash.hash}:${file.status}:${file.rel}`;
-    const dir = path.posix.dirname(file.rel);
-    const status = file.status === 'R' ? `renamed from ${file.oldRel}` : file.status === 'M' ? '' : STATUS[file.status];
-    this.description = [dir === '.' ? '' : dir, status].filter(Boolean).join(' · ');
-    this.tooltip = `${file.rel} (${STATUS[file.status] ?? file.status})`;
-    // A file URI would pick up the working tree's SCM decorations: keep the revision's.
-    this.resourceUri = revisionUri(root, file.rel, file.ref);
-    this.command = {
-      command: 'vscode.diff',
-      title: 'Open Changes',
-      arguments: [revisionUri(root, file.oldRel, file.oldRef), this.resourceUri, diffTitle(file, stash)],
-    };
-  }
-}
-
 // Stashes of every open repository (directly at the top level when there's one).
 class StashView {
   constructor(id, api) {
@@ -105,7 +81,7 @@ class StashView {
     try {
       if (item instanceof StashItem) {
         const files = await git.stashFiles(item.root, item.stash);
-        return files.map(file => new StashFileItem(item.root, item.stash, file));
+        return files.map(file => new ChangedFileItem(item.root, file, item.stash.ref, `stash:${item.stash.hash}`));
       }
       if (item instanceof RepoItem) return item.stashes.map(stash => new StashItem(item.root, stash));
       const roots = this.roots();
@@ -176,12 +152,7 @@ function registerStashCommands(context, view) {
     })),
     vscode.commands.registerCommand('gitHistory.openStashChanges', run(async item => {
       const files = await git.stashFiles(item.root, item.stash);
-      await vscode.commands.executeCommand('vscode.changes', `${label(item)} (${short(item.stash.hash)})`,
-        files.map(file => [
-          vscode.Uri.file(path.join(item.root, file.rel)),
-          revisionUri(item.root, file.oldRel, file.oldRef),
-          revisionUri(item.root, file.rel, file.ref),
-        ]));
+      await openMultiDiff(`${label(item)} (${short(item.stash.hash)})`, item.root, files);
     })),
   );
 }

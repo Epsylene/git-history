@@ -44,4 +44,49 @@ function debounce(fn, delay) {
   };
 }
 
-module.exports = { SCHEME, revisionUri, contentProvider, short, ago, debounce };
+function commitTooltip(commit) {
+  const md = new vscode.MarkdownString();
+  md.appendMarkdown(`**`);
+  md.appendText(commit.author);
+  md.appendMarkdown(`**, ${ago(commit.date)} (${commit.date.toLocaleString()})\n\n`);
+  for (const line of commit.message.split('\n')) {
+    md.appendText(line);
+    md.appendMarkdown('  \n');
+  }
+  md.appendMarkdown(`\n\`${commit.hash}\``);
+  return md;
+}
+
+const STATUS = { A: 'added', D: 'deleted', M: 'modified', R: 'renamed', C: 'copied', T: 'type changed', U: 'untracked' };
+
+// A file from git.diffFiles: click for its diff, titled `${name} (${label})`.
+class ChangedFileItem extends vscode.TreeItem {
+  constructor(root, file, label, idPrefix) {
+    super(path.posix.basename(file.rel));
+    this.id = `${idPrefix}:${file.status}:${file.rel}`;
+    const dir = path.posix.dirname(file.rel);
+    const status = file.status === 'R' ? `renamed from ${file.oldRel}` : file.status === 'M' ? '' : STATUS[file.status];
+    this.description = [dir === '.' ? '' : dir, status].filter(Boolean).join(' · ');
+    this.tooltip = `${file.rel} (${STATUS[file.status] ?? file.status})`;
+    // A file URI would pick up the working tree's SCM decorations: keep the revision's.
+    this.resourceUri = revisionUri(root, file.rel, file.ref);
+    this.command = {
+      command: 'vscode.diff',
+      title: 'Open Changes',
+      arguments: [revisionUri(root, file.oldRel, file.oldRef), this.resourceUri, `${path.posix.basename(file.rel)} (${label})`],
+    };
+  }
+}
+
+// Opens files from git.diffFiles side by side in one multi-diff editor.
+function openMultiDiff(title, root, files) {
+  return vscode.commands.executeCommand('vscode.changes', title, files.map(file => [
+    vscode.Uri.file(path.join(root, file.rel)),
+    revisionUri(root, file.oldRel, file.oldRef),
+    revisionUri(root, file.rel, file.ref),
+  ]));
+}
+
+module.exports = {
+  SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip, ChangedFileItem, openMultiDiff,
+};

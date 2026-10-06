@@ -2,21 +2,9 @@ const vscode = require('vscode');
 const path = require('path');
 const git = require('./git');
 
-const { SCHEME, revisionUri, contentProvider, short, ago, debounce } = require('./common');
+const { SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip } = require('./common');
 const { StashView, registerStashCommands, watchStashes } = require('./stashes');
-
-function tooltip(commit) {
-  const md = new vscode.MarkdownString();
-  md.appendMarkdown(`**`);
-  md.appendText(commit.author);
-  md.appendMarkdown(`**, ${ago(commit.date)} (${commit.date.toLocaleString()})\n\n`);
-  for (const line of commit.message.split('\n')) {
-    md.appendText(line);
-    md.appendMarkdown('  \n');
-  }
-  md.appendMarkdown(`\n\`${commit.hash}\``);
-  return md;
-}
+const { BranchView, registerBranchCommands, watchBranches } = require('./branch');
 
 class CommitItem extends vscode.TreeItem {
   constructor(target, commit) {
@@ -24,7 +12,7 @@ class CommitItem extends vscode.TreeItem {
     this.target = target;
     this.commit = commit;
     this.description = `${commit.author}, ${ago(commit.date)}`;
-    this.tooltip = tooltip(commit);
+    this.tooltip = commitTooltip(commit);
     this.iconPath = new vscode.ThemeIcon('git-commit');
     this.contextValue = 'commit';
     this.command = { command: 'gitHistory.openChanges', title: 'Open Changes', arguments: [this] };
@@ -233,6 +221,7 @@ async function activate(context) {
   const fileView = new FileHistoryView('gitHistory.fileHistory');
   const lineView = new LineHistoryView('gitHistory.lineHistory');
   const stashView = new StashView('gitHistory.stashes', api);
+  const branchView = new BranchView('gitHistory.branch', api, context.workspaceState);
   const views = [fileView, lineView];
   const refreshAll = () => views.forEach(view => view.refresh());
   const refreshLines = debounce(() => lineView.refresh(), 250);
@@ -240,6 +229,7 @@ async function activate(context) {
   context.subscriptions.push(
     ...views,
     stashView,
+    branchView,
     vscode.workspace.registerTextDocumentContentProvider(SCHEME, contentProvider),
     vscode.window.onDidChangeActiveTextEditor(editor => {
       if (fileView.follow(editor)) fileView.refresh();
@@ -264,9 +254,11 @@ async function activate(context) {
     vscode.commands.registerCommand('gitHistory.copyMessage', item => vscode.env.clipboard.writeText(item.commit.message)),
   );
   registerStashCommands(context, stashView);
+  registerBranchCommands(context, branchView);
   if (api) {
     watchHeads(context, api, debounce(refreshAll, 250));
     watchStashes(context, stashView, api);
+    watchBranches(context, branchView, api);
   }
   refreshAll();
 }

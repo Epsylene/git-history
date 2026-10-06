@@ -199,19 +199,27 @@ async function stashes(root) {
   });
 }
 
-// Files in a stash as { status, rel, oldRel, ref, oldRef }: the content stashed
-// is `ref:rel`, the content it was based on is `oldRef:oldRel` (empty ref: none).
-async function stashFiles(root, stash) {
-  const [base, , untracked] = stash.parents;
-  const out = await git(root, ['diff-tree', '-r', '-M', '--name-status', '-z', '--no-ext-diff', base, stash.hash]);
+// Files changed between two commits as { status, rel, oldRel, ref, oldRef }:
+// the new content is `ref:rel`, the old one `oldRef:oldRel` (empty ref: none).
+// Without `from`, lists the files of the root commit `to`.
+async function diffFiles(root, from, to) {
+  const args = ['diff-tree', '-r', '-M', '--name-status', '-z', '--no-ext-diff'];
+  const out = await git(root, from ? [...args, from, to] : [...args, '--root', '--no-commit-id', to]);
   const parts = out.split('\0');
   const files = [];
   for (let i = 0; i + 1 < parts.length;) {
     const status = parts[i++];
     const oldRel = parts[i++];
     const rel = /^[RC]/.test(status) ? parts[i++] : oldRel;
-    files.push({ status: status[0], rel, oldRel, ref: stash.hash, oldRef: status[0] === 'A' ? '' : base });
+    files.push({ status: status[0], rel, oldRel, ref: to, oldRef: status[0] === 'A' ? '' : from });
   }
+  return files.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+// Files in a stash, including untracked ones (status 'U').
+async function stashFiles(root, stash) {
+  const [base, , untracked] = stash.parents;
+  const files = await diffFiles(root, base, stash.hash);
   if (untracked) {
     const names = await git(root, ['ls-tree', '-r', '-z', '--name-only', untracked]);
     for (const rel of names.split('\0').filter(Boolean)) {
@@ -235,11 +243,61 @@ function stashPush(root, message, untracked) {
   return git(root, args);
 }
 
+// Short name of the current branch, or null when HEAD is detached.
+function currentBranch(root) {
+  return git(root, ['symbolic-ref', '-q', '--short', 'HEAD']).then(out => out.trim() || null, () => null);
+}
+
+const resolveRef = (root, ref) =>
+  git(root, ['rev-parse', '--verify', '-q', `${ref}^{commit}`]).then(out => out.trim(), () => null);
+
+// The branch to compare against by default: the remote's default branch, else main or master.
+async function defaultBase(root) {
+  const remoteHead = await git(root, ['symbolic-ref', '-q', '--short', 'refs/remotes/origin/HEAD']).catch(() => '');
+  for (const ref of [remoteHead.trim(), 'origin/main', 'origin/master', 'main', 'master']) {
+    if (ref && await resolveRef(root, ref)) return ref;
+  }
+  return null;
+}
+
+// Branches and tags, most recently updated first, as { name, kind, date }.
+async function refs(root) {
+  const out = await git(root, ['for-each-ref', '--sort=-committerdate',
+    '--format=%(refname)%1f%(refname:short)%1f%(committerdate:unix)', 'refs/heads', 'refs/remotes', 'refs/tags']);
+  return out.split('\n').filter(Boolean).map(line => {
+    const [full, name, time] = line.split('\x1f');
+    const kind = full.startsWith('refs/heads/') ? 'branch' : full.startsWith('refs/tags/') ? 'tag' : 'remote';
+    return { full, name, kind, date: new Date(Number(time) * 1000) };
+  }).filter(ref => !ref.full.endsWith('/HEAD'));
+}
+
+// What HEAD has on top of `base`, like a pull request: the commits on HEAD
+// that aren't on `base`, and the files changed since their merge base.
+async function branchChanges(root, base, limit) {
+  const [head, baseSha] = await Promise.all([resolveRef(root, 'HEAD'), resolveRef(root, base)]);
+  if (!head) throw new Error('This repository has no commits yet.');
+  if (!baseSha) throw new Error(`${base} doesn't exist.`);
+  const mergeBase = (await git(root, ['merge-base', head, baseSha]).catch(() => '')).trim();
+  if (!mergeBase) throw new Error(`HEAD and ${base} have no common history.`);
+  const [out, files] = await Promise.all([
+    git(root, ['log', ...LOG_ARGS, FORMAT, `-n${limit + 1}`, `${baseSha}..${head}`]),
+    diffFiles(root, mergeBase, head),
+  ]);
+  const commits = records(out).map(({ commit }) => commit);
+  return { head, baseSha, mergeBase, commits: commits.slice(0, limit), more: commits.length > limit, files };
+}
+
+// Files changed by a commit (against its first parent).
+function commitFiles(root, commit) {
+  return diffFiles(root, commit.parents[0] ?? '', commit.hash);
+}
+
 async function cleanup() {
   if (tmpDir) await fs.rm(await tmpDir, { recursive: true, force: true });
 }
 
 module.exports = {
   resolve, headSha, isTracked, hasChanges, show, fileHistory, lineHistory, diffHunks, mapRange,
-  stashes, stashFiles, stashAction, stashPush, cleanup,
+  stashes, stashFiles, stashAction, stashPush,
+  currentBranch, resolveRef, defaultBase, refs, branchChanges, commitFiles, cleanup,
 };
