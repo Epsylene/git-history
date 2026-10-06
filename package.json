@@ -1,0 +1,135 @@
+{
+  "name": "git-history",
+  "displayName": "Git History",
+  "description": "File History and Line History views in the Source Control sidebar.",
+  "version": "0.1.0",
+  "publisher": "epsylene",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "configuration": {
+      "title": "Git History",
+      "properties": {
+        "gitHistory.maxCommits": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "description": "Number of commits to load at once in the history views."
+        }
+      }
+    },
+    "views": {
+      "scm": [
+        {
+          "id": "gitHistory.fileHistory",
+          "name": "File History"
+        },
+        {
+          "id": "gitHistory.lineHistory",
+          "name": "Line History"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gitHistory.refresh",
+        "title": "Refresh",
+        "category": "Git History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitHistory.loadMore",
+        "title": "Load More",
+        "category": "Git History"
+      },
+      {
+        "command": "gitHistory.openChanges",
+        "title": "Open Changes",
+        "category": "Git History",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "gitHistory.openRevision",
+        "title": "Open File at Revision",
+        "category": "Git History",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "gitHistory.compareWithWorking",
+        "title": "Compare with Working File",
+        "category": "Git History"
+      },
+      {
+        "command": "gitHistory.copyHash",
+        "title": "Copy Commit Hash",
+        "category": "Git History"
+      },
+      {
+        "command": "gitHistory.copyMessage",
+        "title": "Copy Commit Message",
+        "category": "Git History"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "gitHistory.loadMore", "when": "false" },
+        { "command": "gitHistory.openChanges", "when": "false" },
+        { "command": "gitHistory.openRevision", "when": "false" },
+        { "command": "gitHistory.compareWithWorking", "when": "false" },
+        { "command": "gitHistory.copyHash", "when": "false" },
+        { "command": "gitHistory.copyMessage", "when": "false" }
+      ],
+      "view/title": [
+        {
+          "command": "gitHistory.refresh",
+          "when": "view == gitHistory.fileHistory || view == gitHistory.lineHistory",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitHistory.openRevision",
+          "when": "view =~ /^gitHistory\\./ && viewItem == commit",
+          "group": "inline"
+        },
+        {
+          "command": "gitHistory.openChanges",
+          "when": "view =~ /^gitHistory\\./ && viewItem =~ /^(commit|uncommitted)$/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "gitHistory.openRevision",
+          "when": "view =~ /^gitHistory\\./ && viewItem == commit",
+          "group": "1_open@2"
+        },
+        {
+          "command": "gitHistory.compareWithWorking",
+          "when": "view =~ /^gitHistory\\./ && viewItem == commit",
+          "group": "1_open@3"
+        },
+        {
+          "command": "gitHistory.copyHash",
+          "when": "view =~ /^gitHistory\\./ && viewItem == commit",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "gitHistory.copyMessage",
+          "when": "view =~ /^gitHistory\\./ && viewItem == commit",
+          "group": "2_copy@2"
+        }
+      ]
+    }
+  }
+}
