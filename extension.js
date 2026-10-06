@@ -2,39 +2,8 @@ const vscode = require('vscode');
 const path = require('path');
 const git = require('./git');
 
-const SCHEME = 'git-history';
-
-// Read-only documents holding a file's content at a revision.
-// An empty ref (no parent) or a missing file gives an empty document.
-function revisionUri(root, rel, ref) {
-  return vscode.Uri.from({
-    scheme: SCHEME,
-    path: vscode.Uri.file(path.join(root, rel)).path,
-    query: new URLSearchParams({ root, rel, ref }).toString(),
-  });
-}
-
-const contentProvider = {
-  async provideTextDocumentContent(uri) {
-    const params = new URLSearchParams(uri.query);
-    const ref = params.get('ref');
-    if (!ref) return '';
-    return (await git.show(params.get('root'), ref, params.get('rel'))) ?? '';
-  },
-};
-
-const short = hash => hash.slice(0, 7);
-
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-const UNITS = [['year', 31536000], ['month', 2592000], ['week', 604800], ['day', 86400], ['hour', 3600], ['minute', 60]];
-
-function ago(date) {
-  const seconds = (date.getTime() - Date.now()) / 1000;
-  for (const [unit, size] of UNITS) {
-    if (Math.abs(seconds) >= size) return rtf.format(Math.round(seconds / size), unit);
-  }
-  return rtf.format(0, 'minute');
-}
+const { SCHEME, revisionUri, contentProvider, short, ago, debounce } = require('./common');
+const { StashView, registerStashCommands, watchStashes } = require('./stashes');
 
 function tooltip(commit) {
   const md = new vscode.MarkdownString();
@@ -234,19 +203,19 @@ function compareWithWorking(item) {
     `${path.basename(commit.rel)} (${short(commit.hash)} ↔ Working Tree)`);
 }
 
-function debounce(fn, delay) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
+// The built-in Git extension's API, or null if Git is disabled.
+async function gitApi() {
+  try {
+    const ext = vscode.extensions.getExtension('vscode.git');
+    if (!ext) return null;
+    return (ext.isActive ? ext.exports : await ext.activate()).getAPI(1);
+  } catch {
+    return null;
+  }
 }
 
 // Refresh when a repository's HEAD moves (commit, checkout, pull…).
-async function watchRepositories(context, onChange) {
-  const ext = vscode.extensions.getExtension('vscode.git');
-  if (!ext) return;
-  const api = (await ext.activate()).getAPI(1);
+function watchHeads(context, api, onChange) {
   const watch = repo => {
     let head = repo.state.HEAD?.commit;
     context.subscriptions.push(repo.state.onDidChange(() => {
@@ -259,15 +228,18 @@ async function watchRepositories(context, onChange) {
   context.subscriptions.push(api.onDidOpenRepository(watch));
 }
 
-function activate(context) {
+async function activate(context) {
+  const api = await gitApi();
   const fileView = new FileHistoryView('gitHistory.fileHistory');
   const lineView = new LineHistoryView('gitHistory.lineHistory');
+  const stashView = new StashView('gitHistory.stashes', api);
   const views = [fileView, lineView];
   const refreshAll = () => views.forEach(view => view.refresh());
   const refreshLines = debounce(() => lineView.refresh(), 250);
 
   context.subscriptions.push(
     ...views,
+    stashView,
     vscode.workspace.registerTextDocumentContentProvider(SCHEME, contentProvider),
     vscode.window.onDidChangeActiveTextEditor(editor => {
       if (fileView.follow(editor)) fileView.refresh();
@@ -291,7 +263,11 @@ function activate(context) {
     vscode.commands.registerCommand('gitHistory.copyHash', item => vscode.env.clipboard.writeText(item.commit.hash)),
     vscode.commands.registerCommand('gitHistory.copyMessage', item => vscode.env.clipboard.writeText(item.commit.message)),
   );
-  watchRepositories(context, debounce(refreshAll, 250)).catch(() => {});
+  registerStashCommands(context, stashView);
+  if (api) {
+    watchHeads(context, api, debounce(refreshAll, 250));
+    watchStashes(context, stashView, api);
+  }
   refreshAll();
 }
 

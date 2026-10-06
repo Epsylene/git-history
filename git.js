@@ -14,7 +14,7 @@ function git(cwd, args, okCodes = [0]) {
     execFile('git', [...BASE_ARGS, ...args], { cwd, maxBuffer: 256 * 1024 * 1024 }, (err, stdout, stderr) => {
       const code = err ? err.code : 0;
       if (okCodes.includes(code)) resolve(stdout);
-      else reject(new Error((stderr || '').trim() || err.message));
+      else reject(new Error((stderr || '').trim() || (stdout || '').trim() || err.message));
     });
   });
 }
@@ -180,10 +180,66 @@ function mapRange(hunks, start, end) {
   return { range: lo === Infinity ? null : { start: lo, end: hi }, dirty };
 }
 
+// Stashes, newest first. `ref` (stash@{n}) shifts as stashes come and go: act on `hash`.
+async function stashes(root) {
+  const out = await git(root, ['stash', 'list', '--format=%H%x1f%P%x1f%gd%x1f%ct%x1f%gs']);
+  return out.split('\n').filter(Boolean).map(line => {
+    const [hash, parents, ref, time, subject] = line.split('\x1f');
+    const m = subject.match(/^(WIP on|On) ([^:]*): (.*)$/s);
+    return {
+      hash,
+      parents: parents.split(' ').filter(Boolean),
+      ref,
+      date: new Date(Number(time) * 1000),
+      branch: m ? m[2] : undefined,
+      // `git stash` without a message records "WIP on <branch>: <HEAD's subject>".
+      message: m && m[1] === 'On' ? m[3] : undefined,
+      subject,
+    };
+  });
+}
+
+// Files in a stash as { status, rel, oldRel, ref, oldRef }: the content stashed
+// is `ref:rel`, the content it was based on is `oldRef:oldRel` (empty ref: none).
+async function stashFiles(root, stash) {
+  const [base, , untracked] = stash.parents;
+  const out = await git(root, ['diff-tree', '-r', '-M', '--name-status', '-z', '--no-ext-diff', base, stash.hash]);
+  const parts = out.split('\0');
+  const files = [];
+  for (let i = 0; i + 1 < parts.length;) {
+    const status = parts[i++];
+    const oldRel = parts[i++];
+    const rel = /^[RC]/.test(status) ? parts[i++] : oldRel;
+    files.push({ status: status[0], rel, oldRel, ref: stash.hash, oldRef: status[0] === 'A' ? '' : base });
+  }
+  if (untracked) {
+    const names = await git(root, ['ls-tree', '-r', '-z', '--name-only', untracked]);
+    for (const rel of names.split('\0').filter(Boolean)) {
+      files.push({ status: 'U', rel, oldRel: rel, ref: untracked, oldRef: '' });
+    }
+  }
+  return files.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+
+// Runs `git stash <action>` (apply, pop, drop) on the stash with this hash.
+async function stashAction(root, hash, action) {
+  const stash = (await stashes(root)).find(s => s.hash === hash);
+  if (!stash) throw new Error('This stash no longer exists.');
+  return git(root, ['stash', action, stash.ref]);
+}
+
+function stashPush(root, message, untracked) {
+  const args = ['stash', 'push'];
+  if (untracked) args.push('--include-untracked');
+  if (message) args.push('-m', message);
+  return git(root, args);
+}
+
 async function cleanup() {
   if (tmpDir) await fs.rm(await tmpDir, { recursive: true, force: true });
 }
 
 module.exports = {
-  resolve, headSha, isTracked, hasChanges, show, fileHistory, lineHistory, diffHunks, mapRange, cleanup,
+  resolve, headSha, isTracked, hasChanges, show, fileHistory, lineHistory, diffHunks, mapRange,
+  stashes, stashFiles, stashAction, stashPush, cleanup,
 };

@@ -1,14 +1,19 @@
 {
   "name": "git-history",
   "displayName": "Git History",
-  "description": "File History and Line History views in the Source Control sidebar.",
-  "version": "0.1.0",
+  "description": "File History, Line History and Stashes views in the Source Control sidebar.",
+  "version": "0.2.0",
   "publisher": "epsylene",
   "license": "MIT",
   "engines": {
     "vscode": "^1.100.0"
   },
   "main": "./extension.js",
+  "files": [
+    "*.js",
+    "LICENSE",
+    "README.md"
+  ],
   "activationEvents": [],
   "extensionDependencies": [
     "vscode.git"
@@ -39,6 +44,10 @@
         {
           "id": "gitHistory.lineHistory",
           "name": "Line History"
+        },
+        {
+          "id": "gitHistory.stashes",
+          "name": "Stashes"
         }
       ]
     },
@@ -80,22 +89,116 @@
         "command": "gitHistory.copyMessage",
         "title": "Copy Commit Message",
         "category": "Git History"
+      },
+      {
+        "command": "gitHistory.stashChanges",
+        "title": "Stash Changes",
+        "category": "Git History",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gitHistory.stashChangesUntracked",
+        "title": "Stash Changes (Include Untracked)",
+        "category": "Git History"
+      },
+      {
+        "command": "gitHistory.refreshStashes",
+        "title": "Refresh",
+        "category": "Git History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitHistory.applyStash",
+        "title": "Apply Stash",
+        "category": "Git History",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gitHistory.popStash",
+        "title": "Pop Stash",
+        "category": "Git History",
+        "icon": "$(export)"
+      },
+      {
+        "command": "gitHistory.dropStash",
+        "title": "Drop Stash",
+        "category": "Git History",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "gitHistory.openStashChanges",
+        "title": "Open All Changes",
+        "category": "Git History",
+        "icon": "$(diff-multiple)"
       }
     ],
     "menus": {
       "commandPalette": [
-        { "command": "gitHistory.loadMore", "when": "false" },
-        { "command": "gitHistory.openChanges", "when": "false" },
-        { "command": "gitHistory.openRevision", "when": "false" },
-        { "command": "gitHistory.compareWithWorking", "when": "false" },
-        { "command": "gitHistory.copyHash", "when": "false" },
-        { "command": "gitHistory.copyMessage", "when": "false" }
+        {
+          "command": "gitHistory.loadMore",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.openChanges",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.openRevision",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.compareWithWorking",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.copyHash",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.copyMessage",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.refreshStashes",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.applyStash",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.popStash",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.dropStash",
+          "when": "false"
+        },
+        {
+          "command": "gitHistory.openStashChanges",
+          "when": "false"
+        }
       ],
       "view/title": [
         {
           "command": "gitHistory.refresh",
           "when": "view == gitHistory.fileHistory || view == gitHistory.lineHistory",
           "group": "navigation"
+        },
+        {
+          "command": "gitHistory.stashChanges",
+          "when": "view == gitHistory.stashes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitHistory.refreshStashes",
+          "when": "view == gitHistory.stashes",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitHistory.stashChangesUntracked",
+          "when": "view == gitHistory.stashes",
+          "group": "1_stash"
         }
       ],
       "view/item/context": [
@@ -128,6 +231,61 @@
           "command": "gitHistory.copyMessage",
           "when": "view =~ /^gitHistory\\./ && viewItem == commit",
           "group": "2_copy@2"
+        },
+        {
+          "command": "gitHistory.openStashChanges",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitHistory.applyStash",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "inline@2"
+        },
+        {
+          "command": "gitHistory.popStash",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "inline@3"
+        },
+        {
+          "command": "gitHistory.dropStash",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "inline@4"
+        },
+        {
+          "command": "gitHistory.openStashChanges",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "1_open@1"
+        },
+        {
+          "command": "gitHistory.applyStash",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "2_stash@1"
+        },
+        {
+          "command": "gitHistory.popStash",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "2_stash@2"
+        },
+        {
+          "command": "gitHistory.dropStash",
+          "when": "view == gitHistory.stashes && viewItem == stash",
+          "group": "3_drop@1"
+        },
+        {
+          "command": "gitHistory.stashChanges",
+          "when": "view == gitHistory.stashes && viewItem == repository",
+          "group": "inline"
+        },
+        {
+          "command": "gitHistory.stashChanges",
+          "when": "view == gitHistory.stashes && viewItem == repository",
+          "group": "1_stash@1"
+        },
+        {
+          "command": "gitHistory.stashChangesUntracked",
+          "when": "view == gitHistory.stashes && viewItem == repository",
+          "group": "1_stash@2"
         }
       ]
     }
