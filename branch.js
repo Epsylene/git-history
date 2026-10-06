@@ -1,7 +1,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const git = require('./git');
-const { short, ago, debounce, commitTooltip, ChangedFileItem, openMultiDiff } = require('./common');
+const { short, ago, debounce, commitTooltip, ChangedFileItem, openMultiDiff, pickRef } = require('./common');
 
 const Collapsed = vscode.TreeItemCollapsibleState.Collapsed;
 const Expanded = vscode.TreeItemCollapsibleState.Expanded;
@@ -176,20 +176,15 @@ async function pickRoot(view, item, placeHolder) {
 async function changeBase(view, item) {
   const root = await pickRoot(view, item, 'Repository to compare');
   if (!root) return;
-  const [refs, current, fallback] = await Promise.all([git.refs(root), view.base(root), git.defaultBase(root)]);
-  const icons = { branch: 'git-branch', remote: 'cloud', tag: 'tag' };
-  const picks = [];
-  if (fallback) picks.push({ label: `$(discard) Default (${fallback})`, reset: true });
-  picks.push(...refs.map(ref => ({
-    label: `$(${icons[ref.kind]}) ${ref.name}`,
-    description: [ref.name === current ? 'current base' : '', ago(ref.date)].filter(Boolean).join(' · '),
-    ref: ref.name,
-  })));
-  const picked = await vscode.window.showQuickPick(picks, {
+  const [current, fallback] = await Promise.all([view.base(root), git.defaultBase(root)]);
+  const picked = await pickRef(root, {
     placeHolder: `Compare ${path.basename(root)} with…`,
-    matchOnDescription: true,
+    current,
+    currentLabel: 'current base',
+    extra: fallback ? [{ label: `$(discard) Default (${fallback})`, reset: true }] : [],
   });
   if (!picked) return;
+  if (!picked.reset && !await git.resolveRef(root, picked.ref)) throw new Error(`Unknown revision: ${picked.ref}`);
   await view.setBase(root, picked.reset ? undefined : picked.ref);
   view.refresh();
 }

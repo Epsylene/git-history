@@ -299,5 +299,5 @@ async function cleanup() {
 module.exports = {
   resolve, headSha, isTracked, hasChanges, show, fileHistory, lineHistory, diffHunks, mapRange,
   stashes, stashFiles, stashAction, stashPush,
-  currentBranch, resolveRef, defaultBase, refs, branchChanges, commitFiles, cleanup,
+  diffFiles, currentBranch, resolveRef, defaultBase, refs, branchChanges, commitFiles, cleanup,
 };

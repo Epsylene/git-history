@@ -87,6 +87,42 @@ function openMultiDiff(title, root, files) {
   ]));
 }
 
+const REF_ICONS = { branch: 'git-branch', remote: 'cloud', tag: 'tag' };
+
+// Quick-pick of branches and tags, most recent first, after the `extra` items.
+// Typing anything else (a commit hash, HEAD~3…) offers it as is.
+// Resolves to the picked item ({ ref } for a revision), or undefined.
+async function pickRef(root, { placeHolder, current, currentLabel, extra = [] }) {
+  const refs = await git.refs(root);
+  const items = [...extra, ...refs.map(ref => ({
+    label: `$(${REF_ICONS[ref.kind]}) ${ref.name}`,
+    description: [ref.name === current ? currentLabel : '', ago(ref.date)].filter(Boolean).join(' · '),
+    ref: ref.name,
+  }))];
+  const pick = vscode.window.createQuickPick();
+  pick.placeholder = placeHolder;
+  pick.matchOnDescription = true;
+  pick.items = items;
+  return new Promise(resolve => {
+    pick.onDidChangeValue(value => {
+      const typed = value.trim();
+      pick.items = typed && !refs.some(ref => ref.name === typed)
+        ? [{ label: `$(git-commit) ${typed}`, description: 'commit or revision', ref: typed, alwaysShow: true }, ...items]
+        : items;
+    });
+    pick.onDidAccept(() => {
+      resolve(pick.selectedItems[0]);
+      pick.hide();
+    });
+    pick.onDidHide(() => {
+      resolve(undefined);
+      pick.dispose();
+    });
+    pick.show();
+  });
+}
+
 module.exports = {
+  pickRef,
   SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip, ChangedFileItem, openMultiDiff,
 };

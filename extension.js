@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const path = require('path');
 const git = require('./git');
 
-const { SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip } = require('./common');
+const { SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip, pickRef } = require('./common');
 const { StashView, registerStashCommands, watchStashes } = require('./stashes');
 const { BranchView, registerBranchCommands, watchBranches } = require('./branch');
 
@@ -191,6 +191,35 @@ function compareWithWorking(item) {
     `${path.basename(commit.rel)} (${short(commit.hash)} ↔ Working Tree)`);
 }
 
+// Diffs the active file (unsaved edits included) with its version on a branch, tag or commit.
+async function compareWithRef(fileView) {
+  const active = vscode.window.activeTextEditor;
+  const editor = active?.document.uri.scheme === 'file' ? active : fileView.editor;
+  if (!editor) {
+    vscode.window.showInformationMessage('Open a file to compare it.');
+    return;
+  }
+  const { uri } = editor.document;
+  const name = path.basename(uri.fsPath);
+  const repo = await git.resolve(uri.fsPath);
+  if (!repo) throw new Error(`${name} isn't in a Git repository.`);
+  const picked = await pickRef(repo.root, { placeHolder: `Compare ${name} with…` });
+  if (!picked) return;
+  const sha = await git.resolveRef(repo.root, picked.ref);
+  if (!sha) throw new Error(`Unknown revision: ${picked.ref}`);
+  let rel = repo.rel;
+  if (await git.show(repo.root, sha, rel) === null) {
+    // The file may have had another name there.
+    const files = await git.diffFiles(repo.root, sha, 'HEAD');
+    const renamed = files.find(file => file.status === 'R' && file.rel === rel);
+    if (!renamed) throw new Error(`${rel} doesn't exist on ${picked.ref}.`);
+    rel = renamed.oldRel;
+  }
+  const label = rel === repo.rel ? picked.ref : `${picked.ref}: ${rel}`;
+  await vscode.commands.executeCommand('vscode.diff',
+    revisionUri(repo.root, rel, sha), uri, `${name} (${label} ↔ Working Tree)`);
+}
+
 // The built-in Git extension's API, or null if Git is disabled.
 async function gitApi() {
   try {
@@ -250,6 +279,8 @@ async function activate(context) {
     vscode.commands.registerCommand('gitHistory.openChanges', openChanges),
     vscode.commands.registerCommand('gitHistory.openRevision', openRevision),
     vscode.commands.registerCommand('gitHistory.compareWithWorking', compareWithWorking),
+    vscode.commands.registerCommand('gitHistory.compareWithRef', () =>
+      compareWithRef(fileView).catch(err => vscode.window.showErrorMessage(err.message))),
     vscode.commands.registerCommand('gitHistory.copyHash', item => vscode.env.clipboard.writeText(item.commit.hash)),
     vscode.commands.registerCommand('gitHistory.copyMessage', item => vscode.env.clipboard.writeText(item.commit.message)),
   );

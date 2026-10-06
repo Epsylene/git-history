@@ -14,6 +14,8 @@ And for the open repositories:
 
 In the history views, click a commit to open its diff for the file. Right-click for: open the file at that revision, compare it with the working file, copy the hash or message.
 
+The File History title bar's compare button (also **Git History: Compare File with Branch or Tag…** in the command palette) diffs the current file, unsaved edits included, with its version on a branch, tag, or any revision typed in (a hash, `HEAD~3`…). It follows renames between the two.
+
 `gitHistory.maxCommits` (default 100) sets how many commits load at once; "Load more…" fetches the next batch.
 
 The views can be dragged elsewhere (Explorer, panel…) or hidden from the Source Control `…` menu.

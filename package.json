@@ -2,7 +2,7 @@
   "name": "git-history",
   "displayName": "Git History",
   "description": "File History, Line History, Stashes and Branch Changes views in the Source Control sidebar.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "epsylene",
   "license": "MIT",
   "engines": {
@@ -158,6 +158,12 @@
         "title": "Open All Changes",
         "category": "Git History",
         "icon": "$(diff-multiple)"
+      },
+      {
+        "command": "gitHistory.compareWithRef",
+        "title": "Compare File with Branch or Tag…",
+        "category": "Git History",
+        "icon": "$(git-compare)"
       }
     ],
     "menus": {
@@ -216,6 +222,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "gitHistory.compareWithRef",
+          "when": "view == gitHistory.fileHistory",
+          "group": "navigation@1"
+        },
         {
           "command": "gitHistory.refresh",
           "when": "view == gitHistory.fileHistory || view == gitHistory.lineHistory",
