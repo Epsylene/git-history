@@ -57,6 +57,20 @@ function commitTooltip(commit) {
   return md;
 }
 
+// A commit touching `target` ({ root, rel, uri }): click for its diff of the file.
+class CommitItem extends vscode.TreeItem {
+  constructor(target, commit) {
+    super(commit.subject || '(no message)');
+    this.target = target;
+    this.commit = commit;
+    this.description = `${commit.author}, ${ago(commit.date)}`;
+    this.tooltip = commitTooltip(commit);
+    this.iconPath = new vscode.ThemeIcon('git-commit');
+    this.contextValue = 'commit';
+    this.command = { command: 'gitHistory.openChanges', title: 'Open Changes', arguments: [this] };
+  }
+}
+
 const STATUS = { A: 'added', D: 'deleted', M: 'modified', R: 'renamed', C: 'copied', T: 'type changed', U: 'untracked' };
 
 // A file from git.diffFiles: click for its diff, titled `${name} (${label})`.
@@ -124,5 +138,5 @@ async function pickRef(root, { placeHolder, current, currentLabel, extra = [] })
 
 module.exports = {
   pickRef,
-  SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip, ChangedFileItem, openMultiDiff,
+  SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip, CommitItem, STATUS, ChangedFileItem, openMultiDiff,
 };

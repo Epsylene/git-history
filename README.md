@@ -10,7 +10,7 @@ Following the active editor:
 And for the open repositories:
 
 - **Stashes**: stashes of each repository (directly at the top when there's only one). Expand one to see its files, untracked ones included, and click a file for its diff. Inline buttons open all its changes in one diff tab, apply, pop or drop it (dropping asks first). The `+` in the title stashes the current changes with an optional message; its `…` menu has the variant that includes untracked files.
-- **Branch Changes**: what the current branch has on top of a base branch, like a pull request: its **Commits** (expand one for its files) and the **Files Changed** since the merge base. The base defaults to the remote's default branch (`origin/HEAD`), else `main` or `master`; the title bar's compare button picks another branch or tag, per repository and workspace. The multi-diff button opens every changed file in one diff tab.
+- **Branch Changes**: what the current branch has on top of a base branch, like a pull request: its **Commits** (expand one for its files) and the **Files Changed** since the merge base. The base defaults to the remote's default branch (`origin/HEAD`), else `main` or `master`; the title bar's compare button picks another branch or tag, per repository and workspace. The multi-diff button opens every changed file in one diff tab. Above them, the open file's own group shows how it changed on the branch: **Changes on this branch** diffs it from the merge base to the working file (uncommitted edits included), followed by the branch's commits that touched it.
 
 In the history views, click a commit to open its diff for the file. Right-click for: open the file at that revision, compare it with the working file, copy the hash or message.
 

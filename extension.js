@@ -2,22 +2,9 @@ const vscode = require('vscode');
 const path = require('path');
 const git = require('./git');
 
-const { SCHEME, revisionUri, contentProvider, short, ago, debounce, commitTooltip, pickRef } = require('./common');
+const { SCHEME, revisionUri, contentProvider, short, debounce, CommitItem, pickRef } = require('./common');
 const { StashView, registerStashCommands, watchStashes } = require('./stashes');
 const { BranchView, registerBranchCommands, watchBranches } = require('./branch');
-
-class CommitItem extends vscode.TreeItem {
-  constructor(target, commit) {
-    super(commit.subject || '(no message)');
-    this.target = target;
-    this.commit = commit;
-    this.description = `${commit.author}, ${ago(commit.date)}`;
-    this.tooltip = commitTooltip(commit);
-    this.iconPath = new vscode.ThemeIcon('git-commit');
-    this.contextValue = 'commit';
-    this.command = { command: 'gitHistory.openChanges', title: 'Open Changes', arguments: [this] };
-  }
-}
 
 class UncommittedItem extends vscode.TreeItem {
   constructor(target) {
@@ -271,6 +258,7 @@ async function activate(context) {
     vscode.window.onDidChangeActiveTextEditor(editor => {
       if (fileView.follow(editor)) fileView.refresh();
       if (lineView.follow(editor)) refreshLines();
+      branchView.follow(editor);
     }),
     vscode.window.onDidChangeTextEditorSelection(({ textEditor }) => {
       if (lineView.follow(textEditor)) refreshLines();
@@ -278,7 +266,7 @@ async function activate(context) {
     vscode.workspace.onDidChangeTextDocument(({ document }) => {
       if (document === lineView.editor?.document) refreshLines();
     }),
-    vscode.workspace.onDidSaveTextDocument(debounce(refreshAll, 250)),
+    vscode.workspace.onDidSaveTextDocument(debounce(() => { refreshAll(); branchView.refreshFile(); }, 250)),
     vscode.commands.registerCommand('gitHistory.refresh', refreshAll),
     vscode.commands.registerCommand('gitHistory.loadMore', view => {
       view.limit += maxCommits();

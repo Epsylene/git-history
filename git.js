@@ -77,10 +77,12 @@ function records(out) {
   });
 }
 
-// Commits touching a file, newest first, following renames. Each commit gets
-// the file's path in that commit (`rel`) and in its parent (`oldRel`).
-async function fileHistory(root, rel, limit) {
-  const out = await git(root, ['log', ...LOG_ARGS, '--follow', '--name-status', FORMAT, `-n${limit + 1}`, '--', rel]);
+// Commits touching a file, newest first, following renames (only those in
+// `range`, like `base..HEAD`, if given). Each commit gets the file's path in
+// that commit (`rel`) and in its parent (`oldRel`).
+async function fileHistory(root, rel, limit, range) {
+  const out = await git(root, ['log', ...LOG_ARGS, '--follow', '--name-status', FORMAT, `-n${limit + 1}`,
+    ...(range ? [range] : []), '--', rel]);
   let current = rel;
   const commits = records(out).map(({ commit, rest }) => {
     const line = rest.split('\n').find(l => l.includes('\t'));
