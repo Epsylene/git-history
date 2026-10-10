@@ -19,3 +19,26 @@ The File History title bar's compare button (also **Git History: Compare File wi
 `gitHistory.maxCommits` (default 100) sets how many commits load at once; "Load more…" fetches the next batch.
 
 The views can be dragged elsewhere (Explorer, panel…) or hidden from the Source Control `…` menu.
+
+## Installation
+
+The extension isn't on the Marketplace. Download `git-history.vsix` from the [latest release](https://github.com/epsylene/git-history/releases/latest), then:
+
+```sh
+code --install-extension git-history.vsix
+```
+
+(or **Extensions: Install from VSIX…** in the command palette). It needs VS Code 1.100 or later, with the built-in Git extension enabled.
+
+### From source
+
+With Node.js installed:
+
+```sh
+git clone https://github.com/epsylene/git-history.git
+cd git-history
+npm run package
+code --install-extension git-history.vsix --force
+```
+
+Reload the VS Code window afterwards. To update, pull and run the last two commands again.

@@ -5,10 +5,21 @@
   "version": "0.4.1",
   "publisher": "epsylene",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/epsylene/git-history.git"
+  },
+  "homepage": "https://github.com/epsylene/git-history#readme",
+  "bugs": {
+    "url": "https://github.com/epsylene/git-history/issues"
+  },
   "engines": {
     "vscode": "^1.100.0"
   },
   "main": "./extension.js",
+  "scripts": {
+    "package": "npx -y @vscode/vsce package -o git-history.vsix"
+  },
   "files": [
     "*.js",
     "LICENSE",
